@@ -2,7 +2,7 @@ import argparse
 import pandas as pd
 import glob
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
@@ -12,7 +12,7 @@ def _read_parquet_file(path: str) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def read_parquet_files(patterns: list[str], max_workers: int | None = None, type = "data", max_read_files: int | None = None) -> pd.DataFrame:
+def read_parquet_files(patterns: list[str], max_workers: int | None = None, type = "MC", max_read_files: int | None = None) -> pd.DataFrame:
     """
     Parallel reading of multiple Parquet files matching given glob patterns.
     Returns a concatenated DataFrame, with a progress bar.
@@ -20,6 +20,7 @@ def read_parquet_files(patterns: list[str], max_workers: int | None = None, type
     # Expand all glob patterns into real file paths
     files = [f for pat in patterns for f in glob.glob(pat)]     # Remove this limitation ... for testing purposes only
     #### only for testing, to speed up the process, we will read only a few files. Remove this line later (randomly select 100 files if there are more than 100)
+    print("max_read_files=",max_read_files)
     if max_read_files is not None and type == "data" and len(files) > max_read_files:
         files = np.random.choice(files, size=max_read_files, replace=False).tolist()
     elif max_read_files is not None and type == "MC" and len(files) > max_read_files:
@@ -27,7 +28,8 @@ def read_parquet_files(patterns: list[str], max_workers: int | None = None, type
     
     if not files:
         return pd.DataFrame()
-
+    print(files)
+    
     dfs: list[pd.DataFrame] = []
     # Read in parallel with progress bar
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -48,17 +50,26 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='Read parquet files and plots')
     parser.add_argument("-i", "--input",
-        dest="file_path", type=list[str], default=["/Users/yush/OneFlow/TnP/DY_postEE_2022/nominal/"], help="path of directory of parquet files")
+        dest="file_path", type=list[str], default=["/Users/yush/OneFlow/TnP/DY_postEE_2022/nominal/*.parquet"], help="path of directory of parquet files")
 
     parser.add_argument("-v", "--variable",
         dest="var", type=str, default="tag_pt", help="variables to plot")
+
+    parser.add_argument("-t", "--type",
+        dest="type", type=str, default="MC", help="type: data or MC")
+
+    parser.add_argument("-mf", "--maxFile",
+                        dest="maxFile", type=int, default=1, help="Maximum number of files to read")
+
+    parser.add_argument("-mw", "--maxWorker",
+                        dest="maxWorker", type=int, default=1, help="Maximum number of worker nodes for parallel reading")
 
     options = parser.parse_args()
     
 
 #files = glob.glob(options.file_path+"/*.parquet")
 #df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-df = read_parquet_files(options.file_path, 1, "data", 1)
+df = read_parquet_files(options.file_path, options.maxWorker, options.type, options.maxFile)
 
 
 pd.set_option("display.max_columns", None)
