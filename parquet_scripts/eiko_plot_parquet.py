@@ -3,9 +3,28 @@ import pandas as pd
 import glob
 import matplotlib.pyplot as plt
 import numpy as np
+import importlib
 
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
+
+def load_selection_function(module_path: str):
+    """Dynamically load a selection function from selections package."""
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as exc:
+        raise ImportError(
+            f"Could not import selection module '{module_path}'."
+        ) from exc
+
+    if hasattr(module, "selection"):
+        return getattr(module, "selection")
+
+    raise AttributeError(
+        f"The module '{module_path}' does not define a 'selection(df)' function."
+    )
+
+
 
 def _read_parquet_file(path: str) -> pd.DataFrame:
     """Helper to read a single Parquet file."""
@@ -59,35 +78,40 @@ if __name__ == '__main__':
         dest="type", type=str, default="MC", help="type: data or MC")
 
     parser.add_argument("-mf", "--maxFile",
-                        dest="maxFile", type=int, default=1, help="Maximum number of files to read")
+                        dest="maxFile", type=int, default=None, help="Maximum number of files to read")
 
     parser.add_argument("-mw", "--maxWorker",
-                        dest="maxWorker", type=int, default=1, help="Maximum number of worker nodes for parallel reading")
+                        dest="maxWorker", type=int, default=None, help="Maximum number of worker nodes for parallel reading")
+
+    parser.add_argument("-s", "--sel", dest="selection", type=str, default=None, help="selection module to load")
+    
 
     options = parser.parse_args()
     
 
-#files = glob.glob(options.file_path+"/*.parquet")
-#df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-df = read_parquet_files(options.file_path, options.maxWorker, options.type, options.maxFile)
+    #files = glob.glob(options.file_path+"/*.parquet")
+    #df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+    df = read_parquet_files(options.file_path, options.maxWorker, options.type, options.maxFile)
+    if options.selection is not None:
+        selection_fn = load_selection_function(options.selection)
+        df = selection_fn(df)
 
+    pd.set_option("display.max_columns", None)
 
-pd.set_option("display.max_columns", None)
+    for col in df.columns:
+        print(col)
 
-for col in df.columns:
-    print(col)
+        column_to_plot = options.var
+        if column_to_plot not in df.columns:
+            raise ValueError(f"Column '{column_to_plot}' not found in dataset")
 
-column_to_plot = options.var
-if column_to_plot not in df.columns:
-    raise ValueError(f"Column '{column_to_plot}' not found in dataset")
+    plt.figure()
 
-plt.figure()
+    if pd.api.types.is_numeric_dtype(df[column_to_plot]):
+        df[column_to_plot].plot(kind="hist", bins=50)
+        plt.ylabel("A. U.")
 
-if pd.api.types.is_numeric_dtype(df[column_to_plot]):
-    df[column_to_plot].plot(kind="hist", bins=50)
-    plt.ylabel("A. U.")
-
-plt.title(f"{column_to_plot}")
-plt.xlabel(column_to_plot)
-plt.tight_layout()
-plt.show()
+    plt.title(f"{column_to_plot}")
+    plt.xlabel(column_to_plot)
+    plt.tight_layout()
+    plt.show()
