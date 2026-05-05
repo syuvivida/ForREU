@@ -18,13 +18,13 @@ def invEEMass(pt1, eta1, phi1, pt2, eta2, phi2):
         "pt": pt1,
         "eta": eta1,
         "phi": phi1,
-        "mass": MELECTRON
+        "mass": np.full_like(pt1, MELECTRON)
     })
     p4_2 = vector.array({
         "pt": pt2,
         "eta": eta2,
         "phi": phi2,
-        "mass": MELECTRON
+        "mass": np.full_like(pt2, MELECTRON)
     })
     return (p4_1+p4_2).mass
 
@@ -124,25 +124,13 @@ if __name__ == '__main__':
 
     plt.figure()
 
-    p1 = vector.array({
-        "pt": df["tag_pt"],
-        "eta": df["tag_eta"],
-        "phi": df["tag_phi"],
-        "mass": np.full_like(df["tag_pt"], MELECTRON)
-        })
-    p2 = vector.array({
-        "pt": df["probe_pt"],
-        "eta": df["probe_eta"],
-        "phi": df["probe_phi"],
-        "mass": np.full_like(df["probe_pt"], MELECTRON)
-        })
     
-    
-    m12 = (p1+p2).mass
-
+    m12 = invEEMass(df["tag_pt"], df["tag_eta"], df["tag_phi"],
+                    df["probe_pt"], df["probe_eta"], df["probe_phi"])                 
+        
     mdiff = df["mass"]-m12
     print(mdiff)
-    plt.hist(mdiff, bins=50)
+    plt.hist(m12, bins=50)
     plt.title("Derived M_{ee}")
     plt.xlabel("M_{ee} [GeV]")
     plt.tight_layout()
