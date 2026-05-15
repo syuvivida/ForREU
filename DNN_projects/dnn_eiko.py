@@ -27,7 +27,7 @@ import time
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
-
+import argparse
 import matplotlib
 matplotlib.use("Agg")          # non-interactive backend (no X11 on lxplus)
 import matplotlib.pyplot as plt
@@ -61,7 +61,8 @@ WEIGHT_COL = "weight"
 
 # --- DNN hyper-parameters -----------------------------------------------------
 DNN_PARAMS = dict(
-    hidden_layers       = [256, 128, 64, 32],  # one extra hidden layer
+#    hidden_layers       = [256, 128, 64, 32],  # one extra hidden layer
+    hidden_layers       = [64, 32],  # one extra hidden layer
     dropout             = 0.4,             # dropout rate between layers
     batch_norm          = True,            # use batch normalisation
     activation          = "ReLU",          # activation function
@@ -173,11 +174,10 @@ def load_parquet(filepath, columns, label, filter_col=None):
 
 
 
-def load_signal():
+def load_signal(fp):
     """Load multiple signal mass-points across ACTIVE_YEARS and concatenate."""
     cols = _columns_to_read()
     dfs  = []
-    fp="1000_test_sig.parquet"
     df = load_parquet(fp, cols, label=1)
     df[WEIGHT_COL] = 1
     dfs.append(df)
@@ -189,11 +189,10 @@ def load_signal():
     return sig
 
 
-def load_backgrounds():
+def load_backgrounds(fp):
     """Load and concatenate all background processes across ACTIVE_YEARS."""
     cols = _columns_to_read()
     dfs  = []
-    fp="1000_test_bkg.parquet"
     df = load_parquet(fp, cols, label=0)
     df[WEIGHT_COL] = 1
     dfs.append(df)
@@ -553,6 +552,20 @@ def main():
 
     print(f"Using device: {device}")
 
+    ## external input comment
+    
+    parser = argparse.ArgumentParser(
+            description='Read parquet files and plots')
+    parser.add_argument("-s", "--sig",
+        dest="sig_path", type=str, default="1000_test_sig.parquet", help="path of a single parquet file")
+    parser.add_argument("-g", "--bkg",
+        dest="bkg_path", type=str, default="1000_test_bkg.parquet", help="path of a single parquet file")
+
+
+    options = parser.parse_args()
+
+    
+
     # ------------------------------------------------------------------ #
     #  LOAD DATA ONCE  (union of all features across every feature set)   #
     # ------------------------------------------------------------------ #
@@ -562,8 +575,8 @@ def main():
     ))
     DIRECT_FEATURES = all_possible_direct   # used by _columns_to_read()
 
-    sig = load_signal()
-    bkg = load_backgrounds()
+    sig = load_signal(options.sig_path)
+    bkg = load_backgrounds(options.bkg_path)
 
     if "process" in sig.columns:
         sig = sig.drop(columns=["process"])
@@ -773,13 +786,9 @@ def main():
         meta = dict(
             features        = ALL_FEATURES,
             feature_set     = FEATURE_SET_NAME,
-            mass_category   = MASS_CATEGORY,
-            active_years    = ACTIVE_YEARS,
-            signal_label    = SIG_LABEL,
             runtime_seconds = float(time.perf_counter() - loop_start),
             scaler_mean     = scaler.mean_.tolist(),
             scaler_scale    = scaler.scale_.tolist(),
-            signal_points   = [{"MX": mx, "MY": my} for mx, my in SIGNAL_POINTS],
             weighted_auc    = float(auc_w),
             unweighted_auc  = float(auc_u),
             n_signal        = int(sig_mask.sum()),
